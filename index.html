@@ -57,21 +57,13 @@
     </style>
 </head>
 <body>
-    <!-- Config Error Message -->
-    <div id="config-error" class="hidden fixed inset-0 bg-red-900 bg-opacity-95 z-50 flex justify-center items-center text-white p-8">
-        <div class="text-center max-w-2xl">
-            <h2 class="text-4xl font-extrabold mb-4">Firebase Configuration Missing!</h2>
-            <p class="text-xl mb-6">You need to add your Firebase project configuration to the <code>index.html</code> file before the app can work.</p>
-            <p class="text-lg">Please follow the setup instructions from the previous step to get your <code>firebaseConfig</code> object and paste it into the script section of this HTML file.</p>
-        </div>
-    </div>
-
     <!-- Main Container -->
-    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <div id="app" class="hidden container mx-auto p-4 sm:p-6 lg:p-8">
         <!-- Header -->
         <header class="text-center mb-8 relative">
             <h1 class="text-4xl sm:text-5xl font-extrabold text-blue-700">DOW MEDICAL COLLEGE</h1>
             <p class="text-lg text-gray-600 mt-2">Student Attendance Tracker</p>
+            <button id="logout-btn" class="absolute top-0 right-0 bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-all">Logout</button>
         </header>
 
         <!-- User Information Section -->
@@ -210,12 +202,10 @@
 
     <!-- Firebase SDK -->
     <script type="module">
-        // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Your web app's Firebase configuration
         const firebaseConfig = {
           apiKey: "AIzaSyCqp8JwulU8UlKVBEtu3Ii9ZXeSxuF77cE",
           authDomain: "dmc-attendance-tracker.firebaseapp.com",
@@ -226,14 +216,6 @@
           measurementId: "G-XZBH5S7DHS"
         };
 
-        // Check if the config is still the placeholder
-        if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-            document.getElementById('config-error').classList.remove('hidden');
-            // Stop the rest of the script from running if config is missing
-            throw new Error("Firebase configuration is missing."); 
-        }
-
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -243,15 +225,12 @@
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // User is signed in.
+                document.getElementById('app').classList.remove('hidden');
                 userId = user.uid;
                 await loadDataFromFirestore();
                 initializeAppLogic();
             } else {
-                // User is signed out. Sign in anonymously.
-                signInAnonymously(auth).catch((error) => {
-                    console.error("Anonymous sign-in failed:", error);
-                });
+                window.location.href = './login.html';
             }
         });
 
@@ -259,14 +238,11 @@
             if (!userId) return;
             const docRef = doc(db, "users", userId);
             const docSnap = await getDoc(docRef);
-
             if (docSnap.exists()) {
                 userData = docSnap.data();
                 if (!userData.modules) userData.modules = [];
             } else {
-                // doc.data() will be undefined in this case
-                console.log("No such document! Creating one.");
-                await saveDataToFirestore(); // Create initial document
+                await saveDataToFirestore();
             }
         }
 
@@ -280,7 +256,6 @@
         }
 
         function initializeAppLogic() {
-            // --- Element References ---
             const modulesList = document.getElementById('modules-list');
             const addModuleForm = document.getElementById('add-module-form');
             const moduleNameInput = document.getElementById('module-name');
@@ -291,35 +266,21 @@
             const userNameInput = document.getElementById('user-name');
             const rollNoInput = document.getElementById('roll-no');
             const academicYearSelect = document.getElementById('academic-year');
+            const logoutBtn = document.getElementById('logout-btn');
             const chartInstances = {};
+
+            logoutBtn.addEventListener('click', async () => {
+                await signOut(auth);
+            });
 
             const showModal = (message, type = 'alert', confirmText = 'OK', cancelText = 'Cancel') => {
                 return new Promise((resolve) => {
                     const modalId = `modal-${crypto.randomUUID()}`;
                     const isConfirm = type === 'confirm';
-                    const modalHTML = `
-                        <div id="${modalId}" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 transition-opacity">
-                            <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center transform scale-95 transition-transform">
-                                <p class="mb-6 text-gray-700">${message}</p>
-                                <div class="flex justify-center gap-4">
-                                    ${isConfirm ? `<button class="btn-cancel bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">${cancelText}</button>` : ''}
-                                    <button class="btn-ok ${isConfirm ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold py-2 px-6 rounded-md">${confirmText}</button>
-                                </div>
-                            </div>
-                        </div>`;
+                    const modalHTML = `<div id="${modalId}" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"><div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center"><p class="mb-6 text-gray-700">${message}</p><div class="flex justify-center gap-4">${isConfirm ? `<button class="btn-cancel bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">${cancelText}</button>` : ''}<button class="btn-ok ${isConfirm ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold py-2 px-6 rounded-md">${confirmText}</button></div></div></div>`;
                     modalContainer.insertAdjacentHTML('beforeend', modalHTML);
                     const modalElement = document.getElementById(modalId);
-                    setTimeout(() => {
-                        modalElement.classList.add('opacity-100');
-                        modalElement.querySelector('div > div').classList.add('scale-100');
-                    }, 10);
-                    const closeModal = (result) => {
-                        modalElement.classList.remove('opacity-100');
-                        setTimeout(() => {
-                            modalElement.remove();
-                            resolve(result);
-                        }, 200);
-                    };
+                    const closeModal = (result) => { modalElement.remove(); resolve(result); };
                     modalElement.querySelector('.btn-ok').addEventListener('click', () => closeModal(true));
                     if (isConfirm) {
                         modalElement.querySelector('.btn-cancel').addEventListener('click', () => closeModal(false));
@@ -327,19 +288,6 @@
                 });
             };
             
-            const getAttendancePhrase = (percentage) => {
-                const phrases = {
-                    perfect: ["100%? You love going to university, ahh... interesting! 😉"],
-                    safe: ["Great job! You're well on track. Keep up the momentum! 👍"],
-                    close: ["You're just below the 85% mark. A little push is all you need! 💪"],
-                    danger: ["Warning! Your attendance is getting low. You risk being ineligible. 😟"]
-                };
-                if (percentage == 100) return phrases.perfect[0];
-                if (percentage >= 85) return phrases.safe[0];
-                if (percentage >= 75) return phrases.close[0];
-                return phrases.danger[0];
-            };
-
             const loadUserInfo = () => {
                 userNameInput.value = userData.name || '';
                 rollNoInput.value = userData.rollNo || '';
@@ -356,13 +304,56 @@
             editUserInfoBtn.addEventListener('click', async () => {
                 const isDisabled = userNameInput.disabled;
                 [userNameInput, rollNoInput, academicYearSelect].forEach(el => el.disabled = !isDisabled);
-                if (isDisabled) {
-                    editUserInfoBtn.textContent = 'Save Details';
-                } else {
-                    await saveUserInfo();
-                    editUserInfoBtn.textContent = 'Edit Details';
-                }
+                editUserInfoBtn.textContent = isDisabled ? 'Save Details' : 'Edit Details';
+                if (!isDisabled) await saveUserInfo();
             });
+
+            const downloadCSV = (module) => {
+                let csvContent = "data:text/csv;charset=utf-8,Date,Classes Planned,Classes Attended\n";
+                const sortedEntries = [...module.entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+                sortedEntries.forEach(entry => {
+                    csvContent += `${new Date(entry.date).toLocaleDateString()},${entry.planned},${entry.attended}\n`;
+                });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `${module.name}_Report.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const downloadPDF = (module) => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+                doc.text("DOW MEDICAL COLLEGE", doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+                doc.setFontSize(14); doc.setFont('helvetica', 'normal');
+                doc.text("Attendance Report", doc.internal.pageSize.getWidth() / 2, 28, { align: 'center' });
+                doc.setFontSize(11);
+                doc.text(`Student Name: ${userData.name || 'N/A'}`, 14, 45);
+                doc.text(`Roll No: ${userData.rollNo || 'N/A'}`, 14, 52);
+                doc.text(`Academic Year: ${userData.academicYear || 'N/A'}`, 14, 59);
+                doc.text(`Module: ${module.name}`, 14, 66);
+                const tableColumn = ["Date", "Classes Planned", "Classes Attended"];
+                const tableRows = [];
+                module.entries.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(entry => {
+                    tableRows.push([new Date(entry.date).toLocaleDateString(), entry.planned, entry.attended]);
+                });
+                doc.autoTable({ head: [tableColumn], body: tableRows, startY: 75, theme: 'grid' });
+                const finalY = doc.autoTable.previous.finalY;
+                const totalPlanned = module.entries.reduce((sum, entry) => sum + entry.planned, 0);
+                const totalAttended = module.entries.reduce((sum, entry) => sum + entry.attended, 0);
+                const percentage = totalPlanned > 0 ? ((totalAttended / totalPlanned) * 100).toFixed(2) : 0;
+                doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+                doc.text("Summary:", 14, finalY + 15);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total Classes Planned: ${totalPlanned}`, 14, finalY + 22);
+                doc.text(`Total Classes Attended: ${totalAttended}`, 14, finalY + 29);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Overall Attendance: ${percentage}%`, 14, finalY + 36);
+                doc.save(`${module.name}_Report.pdf`);
+            };
 
             const renderModules = () => {
                 const modules = userData.modules || [];
@@ -385,9 +376,6 @@
                     else percentageEl.className = 'module-percentage text-6xl font-bold text-red-500';
                     card.querySelector('.module-summary').textContent = `${totalAttended} of ${totalPlanned} classes attended`;
                     card.querySelector('.entry-date').value = new Date().toISOString().split('T')[0];
-                    if (module.entries.length > 0) {
-                        card.querySelector('.module-phrase').textContent = getAttendancePhrase(percentage);
-                    }
                     const historyContainer = card.querySelector('.module-history');
                     historyContainer.innerHTML = '';
                     const sortedEntries = [...module.entries].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -397,14 +385,7 @@
                         sortedEntries.forEach(entry => {
                             const entryDiv = document.createElement('div');
                             entryDiv.className = 'bg-white p-3 rounded-md border border-gray-200 flex justify-between items-center';
-                            entryDiv.innerHTML = `
-                                <div>
-                                    <p class="font-semibold text-gray-800">${new Date(entry.date).toLocaleDateString()}</p>
-                                    <p class="text-sm text-gray-600">Attended ${entry.attended} of ${entry.planned} classes</p>
-                                </div>
-                                <button class="delete-entry-btn text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-100" data-entry-id="${entry.id}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                </button>`;
+                            entryDiv.innerHTML = `<div><p class="font-semibold text-gray-800">${new Date(entry.date).toLocaleDateString()}</p><p class="text-sm text-gray-600">Attended ${entry.attended} of ${entry.planned} classes</p></div><button class="delete-entry-btn text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-100" data-entry-id="${entry.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
                             historyContainer.appendChild(entryDiv);
                         });
                     }
@@ -423,20 +404,9 @@
                     type: 'line',
                     data: {
                         labels: labels,
-                        datasets: [{
-                            label: 'Daily Attendance %', data: data,
-                            borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            fill: true, tension: 0.3, pointBackgroundColor: '#3b82f6', pointRadius: 4
-                        }]
+                        datasets: [{ label: 'Daily Attendance %', data: data, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.3, pointBackgroundColor: '#3b82f6', pointRadius: 4 }]
                     },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, max: 100, ticks: { color: '#4b5563', callback: (value) => value + '%' }, grid: { color: 'rgba(0,0,0,0.1)' } },
-                            x: { ticks: { color: '#4b5563' }, grid: { display: false } }
-                        },
-                        plugins: { legend: { display: false } }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { color: '#4b5563', callback: (value) => value + '%' }, grid: { color: 'rgba(0,0,0,0.1)' } }, x: { ticks: { color: '#4b5563' }, grid: { display: false } } }, plugins: { legend: { display: false } } }
                 });
             };
 
@@ -470,6 +440,10 @@
                     module.entries = module.entries.filter(entry => entry.id !== entryId);
                     await saveDataToFirestore();
                     renderAll();
+                } else if (e.target.closest('.download-csv-btn')) {
+                    downloadCSV(module);
+                } else if (e.target.closest('.download-pdf-btn')) {
+                    downloadPDF(module);
                 }
             });
 
@@ -501,3 +475,4 @@
     </script>
 </body>
 </html>
+
