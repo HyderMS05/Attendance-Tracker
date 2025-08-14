@@ -470,10 +470,37 @@
                  }
             });
             
+            // Event listener for the "What If" calculator
+            modulesList.addEventListener('input', (e) => {
+                if (e.target.matches('.what-if-planned, .what-if-attended')) {
+                    const card = e.target.closest('.module-card');
+                    const moduleId = card.dataset.id;
+                    const module = userData.modules.find(m => m.id === moduleId);
+                    
+                    const futurePlanned = parseInt(card.querySelector('.what-if-planned').value, 10) || 0;
+                    const futureAttended = parseInt(card.querySelector('.what-if-attended').value, 10) || 0;
+                    const resultEl = card.querySelector('.what-if-result');
+
+                    if (futurePlanned < futureAttended) {
+                        resultEl.textContent = 'Error';
+                        return;
+                    }
+
+                    const totalPlanned = module.entries.reduce((sum, entry) => sum + entry.planned, 0) + futurePlanned;
+                    const totalAttended = module.entries.reduce((sum, entry) => sum + entry.attended, 0) + futureAttended;
+                    
+                    if (totalPlanned > 0) {
+                        const projectedPercentage = ((totalAttended / totalPlanned) * 100).toFixed(1);
+                        resultEl.textContent = `${projectedPercentage}%`;
+                    } else {
+                        resultEl.textContent = '-';
+                    }
+                }
+            });
+            
             renderAll();
         }
     </script>
 </body>
 </html>
-
 
