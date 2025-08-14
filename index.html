@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DMC - Attendance Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- jsPDF-AutoTable plugin for creating tables in PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            @apply bg-gray-100 text-gray-800 transition-colors duration-300;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            @apply bg-gray-200;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            @apply bg-gray-400;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            @apply bg-gray-500;
+        }
+        input[type="text"], input[type="number"], input[type="date"], select {
+            @apply bg-white text-gray-900 border-gray-300;
+        }
+        input:disabled, select:disabled {
+            @apply bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200;
+        }
+        .badge {
+            @apply inline-block px-2 py-1 text-xs font-semibold rounded-full;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .btn-pulse {
+            @apply bg-blue-600 text-white font-semibold;
+            animation: pulse 2s infinite;
+        }
+        .btn-pulse:hover { @apply bg-blue-700; }
+    </style>
+</head>
+<body>
+    <!-- Config Error Message -->
+    <div id="config-error" class="hidden fixed inset-0 bg-red-900 bg-opacity-95 z-50 flex justify-center items-center text-white p-8">
+        <div class="text-center max-w-2xl">
+            <h2 class="text-4xl font-extrabold mb-4">Firebase Configuration Missing!</h2>
+            <p class="text-xl mb-6">You need to add your Firebase project configuration to the <code>index.html</code> file before the app can work.</p>
+            <p class="text-lg">Please follow the setup instructions from the previous step to get your <code>firebaseConfig</code> object and paste it into the script section of this HTML file.</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Header -->
+        <header class="text-center mb-8 relative">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-blue-700">DOW MEDICAL COLLEGE</h1>
+            <p class="text-lg text-gray-600 mt-2">Student Attendance Tracker</p>
+        </header>
+
+        <!-- User Information Section -->
+        <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl p-6 mb-8 border border-gray-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-700">Student Details</h2>
+                <button id="edit-user-info-btn" class="btn-pulse text-sm py-2 px-4 rounded-lg transition-all">Edit Details</button>
+            </div>
+            <div id="user-info-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="user-name" class="text-sm font-medium text-gray-600 mb-1 block">Full Name</label>
+                    <input id="user-name" type="text" placeholder="e.g., John Doe" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 transition-all" disabled>
+                </div>
+                <div>
+                    <label for="roll-no" class="text-sm font-medium text-gray-600 mb-1 block">Roll No.</label>
+                    <input id="roll-no" type="text" placeholder="e.g., D27" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 transition-all" disabled>
+                </div>
+                <div>
+                    <label for="academic-year" class="text-sm font-medium text-gray-600 mb-1 block">Academic Year</label>
+                    <select id="academic-year" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 transition-all" disabled>
+                        <option>1st Year</option>
+                        <option>2nd Year</option>
+                        <option>3rd Year</option>
+                        <option>4th Year</option>
+                        <option>Final Year</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add New Module Form -->
+        <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl p-6 mb-8 border border-gray-200">
+            <h2 class="text-2xl font-bold mb-4 text-gray-700">Add a New Module</h2>
+            <form id="add-module-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div class="flex flex-col md:col-span-2">
+                    <label for="module-name" class="text-sm font-medium text-gray-600 mb-1">Module Name</label>
+                    <input id="module-name" type="text" placeholder="e.g., Cardiology" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500 transition-all w-full" required>
+                </div>
+                <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-all h-10 w-full">
+                    Start Tracking
+                </button>
+            </form>
+        </div>
+
+        <!-- Modules List Container -->
+        <div id="modules-list" class="max-w-4xl mx-auto"></div>
+
+        <!-- Placeholder for when no modules exist -->
+        <div id="no-modules-placeholder" class="text-center py-12 bg-white rounded-lg shadow-md max-w-4xl mx-auto hidden">
+            <h3 class="text-2xl font-semibold text-gray-700">No modules found.</h3>
+            <p class="text-gray-500 mt-2">Add your first module above to begin tracking your attendance.</p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center mt-12">
+            <p class="text-gray-500 text-sm">&copy; 2024 - made by Mirza Shaheer Hyder D27</p>
+        </footer>
+    </div>
+
+    <!-- Module Card Template -->
+    <template id="module-template">
+        <div class="module-card bg-white shadow-lg rounded-xl p-6 mb-8 border border-gray-200 transition-all duration-300">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h2 class="module-name text-2xl font-bold text-gray-800"></h2>
+                    <p class="module-start-date text-sm text-gray-500"></p>
+                    <div class="module-badges mt-2 flex flex-wrap gap-2"></div>
+                </div>
+                <button class="delete-module-btn text-red-500 hover:text-red-700 transition-colors p-1 rounded-full hover:bg-red-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="text-center p-4 rounded-lg bg-gray-50 flex flex-col justify-center">
+                    <p class="text-lg text-gray-600">Overall Attendance</p>
+                    <p class="module-percentage text-6xl font-bold my-2"></p>
+                    <p class="module-summary text-md text-gray-500"></p>
+                    <p class="module-phrase text-sm text-gray-600 mt-3 italic"></p>
+                </div>
+                <div class="relative h-48 lg:h-auto">
+                    <canvas class="module-chart"></canvas>
+                </div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3">"What If" Calculator</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <div class="flex flex-col">
+                        <label class="text-sm font-medium text-gray-600 mb-1">Future Classes Planned</label>
+                        <input type="number" min="0" class="what-if-planned p-2 border rounded-md" placeholder="e.g., 10">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-sm font-medium text-gray-600 mb-1">Future Classes Attended</label>
+                        <input type="number" min="0" class="what-if-attended p-2 border rounded-md" placeholder="e.g., 8">
+                    </div>
+                    <div class="text-center mt-4 md:mt-0">
+                        <p class="text-sm text-gray-600">Projected Attendance</p>
+                        <p class="what-if-result text-2xl font-bold text-blue-600">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <form class="add-entry-form bg-gray-50 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Add New Attendance Entry</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div class="flex flex-col">
+                            <label class="text-sm font-medium text-gray-600 mb-1">Date</label>
+                            <input type="date" class="entry-date p-2 border rounded-md w-full" required>
+                        </div>
+                        <div class="flex flex-col">
+                            <label class="text-sm font-medium text-gray-600 mb-1">Classes Planned</label>
+                            <input type="number" min="1" class="entry-planned p-2 border rounded-md w-full" placeholder="e.g., 4" required>
+                        </div>
+                        <div class="flex flex-col">
+                            <label class="text-sm font-medium text-gray-600 mb-1">Classes Attended</label>
+                            <input type="number" min="0" class="entry-attended p-2 border rounded-md w-full" placeholder="e.g., 3" required>
+                        </div>
+                        <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-all h-10 w-full">Add Entry</button>
+                    </div>
+                </form>
+                <div>
+                    <div class="flex justify-between items-center mt-6 mb-2">
+                        <h3 class="text-lg font-semibold text-gray-700">History & Reports</h3>
+                        <div class="flex gap-2">
+                             <button class="download-csv-btn text-sm bg-green-100 text-green-700 font-semibold py-1 px-3 rounded-lg hover:bg-green-200 transition-colors">Download CSV</button>
+                             <button class="download-pdf-btn text-sm bg-red-100 text-red-700 font-semibold py-1 px-3 rounded-lg hover:bg-red-200 transition-colors">Download PDF</button>
+                        </div>
+                    </div>
+                    <div class="module-history space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar"></div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Custom Modal Dialogs -->
+    <div id="modal-container"></div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+          apiKey: "AIzaSyCqp8JwulU8UlKVBEtu3Ii9ZXeSxuF77cE",
+          authDomain: "dmc-attendance-tracker.firebaseapp.com",
+          projectId: "dmc-attendance-tracker",
+          storageBucket: "dmc-attendance-tracker.appspot.com",
+          messagingSenderId: "909390065505",
+          appId: "1:909390065505:web:3a06b8be1d11ff5a719f20",
+          measurementId: "G-XZBH5S7DHS"
+        };
+
+        // Check if the config is still the placeholder
+        if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+            document.getElementById('config-error').classList.remove('hidden');
+            // Stop the rest of the script from running if config is missing
+            throw new Error("Firebase configuration is missing."); 
+        }
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userId = null;
+        let userData = { modules: [] };
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // User is signed in.
+                userId = user.uid;
+                await loadDataFromFirestore();
+                initializeAppLogic();
+            } else {
+                // User is signed out. Sign in anonymously.
+                signInAnonymously(auth).catch((error) => {
+                    console.error("Anonymous sign-in failed:", error);
+                });
+            }
+        });
+
+        async function loadDataFromFirestore() {
+            if (!userId) return;
+            const docRef = doc(db, "users", userId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                userData = docSnap.data();
+                if (!userData.modules) userData.modules = [];
+            } else {
+                // doc.data() will be undefined in this case
+                console.log("No such document! Creating one.");
+                await saveDataToFirestore(); // Create initial document
+            }
+        }
+
+        async function saveDataToFirestore() {
+            if (!userId) return;
+            try {
+                await setDoc(doc(db, "users", userId), userData);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        }
+
+        function initializeAppLogic() {
+            // --- Element References ---
+            const modulesList = document.getElementById('modules-list');
+            const addModuleForm = document.getElementById('add-module-form');
+            const moduleNameInput = document.getElementById('module-name');
+            const moduleTemplate = document.getElementById('module-template');
+            const noModulesPlaceholder = document.getElementById('no-modules-placeholder');
+            const modalContainer = document.getElementById('modal-container');
+            const editUserInfoBtn = document.getElementById('edit-user-info-btn');
+            const userNameInput = document.getElementById('user-name');
+            const rollNoInput = document.getElementById('roll-no');
+            const academicYearSelect = document.getElementById('academic-year');
+            const chartInstances = {};
+
+            const showModal = (message, type = 'alert', confirmText = 'OK', cancelText = 'Cancel') => {
+                return new Promise((resolve) => {
+                    const modalId = `modal-${crypto.randomUUID()}`;
+                    const isConfirm = type === 'confirm';
+                    const modalHTML = `
+                        <div id="${modalId}" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 transition-opacity">
+                            <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center transform scale-95 transition-transform">
+                                <p class="mb-6 text-gray-700">${message}</p>
+                                <div class="flex justify-center gap-4">
+                                    ${isConfirm ? `<button class="btn-cancel bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">${cancelText}</button>` : ''}
+                                    <button class="btn-ok ${isConfirm ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold py-2 px-6 rounded-md">${confirmText}</button>
+                                </div>
+                            </div>
+                        </div>`;
+                    modalContainer.insertAdjacentHTML('beforeend', modalHTML);
+                    const modalElement = document.getElementById(modalId);
+                    setTimeout(() => {
+                        modalElement.classList.add('opacity-100');
+                        modalElement.querySelector('div > div').classList.add('scale-100');
+                    }, 10);
+                    const closeModal = (result) => {
+                        modalElement.classList.remove('opacity-100');
+                        setTimeout(() => {
+                            modalElement.remove();
+                            resolve(result);
+                        }, 200);
+                    };
+                    modalElement.querySelector('.btn-ok').addEventListener('click', () => closeModal(true));
+                    if (isConfirm) {
+                        modalElement.querySelector('.btn-cancel').addEventListener('click', () => closeModal(false));
+                    }
+                });
+            };
+            
+            const getAttendancePhrase = (percentage) => {
+                const phrases = {
+                    perfect: ["100%? You love going to university, ahh... interesting! 😉"],
+                    safe: ["Great job! You're well on track. Keep up the momentum! 👍"],
+                    close: ["You're just below the 85% mark. A little push is all you need! 💪"],
+                    danger: ["Warning! Your attendance is getting low. You risk being ineligible. 😟"]
+                };
+                if (percentage == 100) return phrases.perfect[0];
+                if (percentage >= 85) return phrases.safe[0];
+                if (percentage >= 75) return phrases.close[0];
+                return phrases.danger[0];
+            };
+
+            const loadUserInfo = () => {
+                userNameInput.value = userData.name || '';
+                rollNoInput.value = userData.rollNo || '';
+                academicYearSelect.value = userData.academicYear || '1st Year';
+            };
+            
+            const saveUserInfo = async () => {
+                userData.name = userNameInput.value.trim();
+                userData.rollNo = rollNoInput.value.trim();
+                userData.academicYear = academicYearSelect.value;
+                await saveDataToFirestore();
+            };
+
+            editUserInfoBtn.addEventListener('click', async () => {
+                const isDisabled = userNameInput.disabled;
+                [userNameInput, rollNoInput, academicYearSelect].forEach(el => el.disabled = !isDisabled);
+                if (isDisabled) {
+                    editUserInfoBtn.textContent = 'Save Details';
+                } else {
+                    await saveUserInfo();
+                    editUserInfoBtn.textContent = 'Edit Details';
+                }
+            });
+
+            const renderModules = () => {
+                const modules = userData.modules || [];
+                modulesList.innerHTML = '';
+                noModulesPlaceholder.classList.toggle('hidden', modules.length > 0);
+                modules.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+                modules.forEach(module => {
+                    const card = document.importNode(moduleTemplate.content, true);
+                    const moduleCard = card.querySelector('.module-card');
+                    moduleCard.dataset.id = module.id;
+                    card.querySelector('.module-name').textContent = module.name;
+                    card.querySelector('.module-start-date').textContent = `Started: ${new Date(module.startDate).toLocaleDateString()}`;
+                    const totalPlanned = module.entries.reduce((sum, entry) => sum + entry.planned, 0);
+                    const totalAttended = module.entries.reduce((sum, entry) => sum + entry.attended, 0);
+                    const percentage = totalPlanned > 0 ? parseFloat(((totalAttended / totalPlanned) * 100).toFixed(1)) : 0;
+                    const percentageEl = card.querySelector('.module-percentage');
+                    percentageEl.textContent = `${percentage}%`;
+                    if (percentage >= 85) percentageEl.className = 'module-percentage text-6xl font-bold text-green-500';
+                    else if (percentage >= 75) percentageEl.className = 'module-percentage text-6xl font-bold text-yellow-500';
+                    else percentageEl.className = 'module-percentage text-6xl font-bold text-red-500';
+                    card.querySelector('.module-summary').textContent = `${totalAttended} of ${totalPlanned} classes attended`;
+                    card.querySelector('.entry-date').value = new Date().toISOString().split('T')[0];
+                    if (module.entries.length > 0) {
+                        card.querySelector('.module-phrase').textContent = getAttendancePhrase(percentage);
+                    }
+                    const historyContainer = card.querySelector('.module-history');
+                    historyContainer.innerHTML = '';
+                    const sortedEntries = [...module.entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    if (sortedEntries.length === 0) {
+                        historyContainer.innerHTML = '<p class="text-center text-gray-500 py-4">No entries yet.</p>';
+                    } else {
+                        sortedEntries.forEach(entry => {
+                            const entryDiv = document.createElement('div');
+                            entryDiv.className = 'bg-white p-3 rounded-md border border-gray-200 flex justify-between items-center';
+                            entryDiv.innerHTML = `
+                                <div>
+                                    <p class="font-semibold text-gray-800">${new Date(entry.date).toLocaleDateString()}</p>
+                                    <p class="text-sm text-gray-600">Attended ${entry.attended} of ${entry.planned} classes</p>
+                                </div>
+                                <button class="delete-entry-btn text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-100" data-entry-id="${entry.id}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>`;
+                            historyContainer.appendChild(entryDiv);
+                        });
+                    }
+                    modulesList.appendChild(card);
+                    updateModuleChart(moduleCard.querySelector('.module-chart'), module);
+                });
+            };
+            
+            const updateModuleChart = (canvas, module) => {
+                const moduleId = module.id;
+                if (chartInstances[moduleId]) chartInstances[moduleId].destroy();
+                const sortedEntries = [...module.entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const labels = sortedEntries.map(e => new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short'}));
+                const data = sortedEntries.map(e => e.planned > 0 ? (e.attended / e.planned) * 100 : 0);
+                chartInstances[moduleId] = new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Daily Attendance %', data: data,
+                            borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true, tension: 0.3, pointBackgroundColor: '#3b82f6', pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, max: 100, ticks: { color: '#4b5563', callback: (value) => value + '%' }, grid: { color: 'rgba(0,0,0,0.1)' } },
+                            x: { ticks: { color: '#4b5563' }, grid: { display: false } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            };
+
+            const renderAll = () => {
+                loadUserInfo();
+                renderModules();
+            };
+
+            addModuleForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newModule = { id: crypto.randomUUID(), name: moduleNameInput.value.trim(), startDate: new Date().toISOString(), entries: [] };
+                userData.modules.push(newModule);
+                await saveDataToFirestore();
+                renderAll();
+                addModuleForm.reset();
+            });
+
+            modulesList.addEventListener('click', async (e) => {
+                const card = e.target.closest('.module-card');
+                if (!card) return;
+                const moduleId = card.dataset.id;
+                let module = userData.modules.find(m => m.id === moduleId);
+                if (e.target.closest('.delete-module-btn')) {
+                    if (await showModal('Are you sure you want to delete this module?', 'confirm')) {
+                        userData.modules = userData.modules.filter(m => m.id !== moduleId);
+                        await saveDataToFirestore();
+                        renderAll();
+                    }
+                } else if (e.target.closest('.delete-entry-btn')) {
+                    const entryId = e.target.closest('.delete-entry-btn').dataset.entryId;
+                    module.entries = module.entries.filter(entry => entry.id !== entryId);
+                    await saveDataToFirestore();
+                    renderAll();
+                }
+            });
+
+            modulesList.addEventListener('submit', async (e) => {
+                 if (e.target.classList.contains('add-entry-form')) {
+                    e.preventDefault();
+                    const card = e.target.closest('.module-card');
+                    const moduleId = card.dataset.id;
+                    const planned = parseInt(e.target.querySelector('.entry-planned').value, 10);
+                    const attended = parseInt(e.target.querySelector('.entry-attended').value, 10);
+                    if (planned < attended) {
+                        await showModal('Attended classes cannot be more than planned classes.');
+                        return;
+                    }
+                    const newEntry = { id: crypto.randomUUID(), date: e.target.querySelector('.entry-date').value, planned, attended };
+                    const module = userData.modules.find(m => m.id === moduleId);
+                    if (module) {
+                        module.entries.push(newEntry);
+                        await saveDataToFirestore();
+                        renderAll();
+                        e.target.reset();
+                        card.querySelector('.entry-date').value = new Date().toISOString().split('T')[0];
+                    }
+                 }
+            });
+            
+            renderAll();
+        }
+    </script>
+</body>
+</html>
